@@ -1,0 +1,25 @@
+# Main verification file. Run with: athena main.ath
+# Loads the full chain and re-claims every theorem.
+
+load "system.ath"
+
+# Mailbox (FIFO)
+(!claim Mailbox.fifo-two)
+(!claim Mailbox.enqueue-preserves-head)
+
+# Actor level (P1..P6)
+(!claim Actor.P1-pid)
+(!claim Actor.P1-state)
+(!claim Actor.P2)
+(!claim Actor.P3)
+(!claim Actor.P4)
+(!claim Actor.P5)
+(!claim Actor.P6)
+
+# System level (S1..S6)
+(!claim System.S1)
+(!claim System.S2)
+(!claim System.S3)
+(!claim System.S4)
+(!claim System.S5)
+(!claim System.S6)

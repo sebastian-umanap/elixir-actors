@@ -1,0 +1,132 @@
+# An actor has a PID, a private state and a FIFO mailbox.
+# deliver: puts a message in the mailbox (does not touch the state).
+# run: processes the oldest message using the behavior function.
+# Proves P1..P6.
+
+load "mailbox.ath"
+
+domain Pid
+domain State
+
+structure Actor := (mk-actor pidOf:Pid stateOf:State mboxOf:Mailbox)
+
+module Actor {
+
+  assert actor-st-axioms := (structure-axioms "Actor")
+  assert actor-se-axioms := (selector-axioms "Actor")
+
+  define [actor-no-junk] := actor-st-axioms
+  define [actor-pid actor-state actor-mbox] := actor-se-axioms
+
+  define [p p1 p2]    := [?p:Pid ?p1:Pid ?p2:Pid]
+  define [s s1 s2]    := [?s:State ?s1:State ?s2:State]
+  define [m m1]       := [?m:Message ?m1:Message]
+  define [mb mb1 rest]:= [?mb:Mailbox ?mb1:Mailbox ?rest:Mailbox]
+  define [a a1 a2]    := [?a:Actor ?a1:Actor ?a2:Actor]
+
+  # behavior is the state transition function (left uninterpreted).
+  declare behavior : [State Message] -> State
+
+  # deliver only changes the mailbox.
+  declare deliver : [Actor Message] -> Actor
+  assert* deliver-def :=
+    ((deliver (mk-actor p s mb) m) = (mk-actor p s (enqueue m mb)))
+
+  # run: empty mailbox -> no change; non-empty -> consume head, advance state.
+  declare run : [Actor] -> Actor
+  assert* run-empty :=
+    ((run (mk-actor p s empty-mb)) = (mk-actor p s empty-mb))
+  assert* run-cons :=
+    ((run (mk-actor p s (cons-mb m rest))) = (mk-actor p (behavior s m) rest))
+
+  # P1: deliver preserves the PID and the state.
+  define P1-pid := (forall a m . (pidOf (deliver a m)) = (pidOf a))
+  datatype-cases P1-pid {
+    (a as (mk-actor p s mb)) =>
+      pick-any m:Message
+        (!chain
+          [(pidOf (deliver (mk-actor p s mb) m))
+         = (pidOf (mk-actor p s (enqueue m mb)))   [deliver-def]
+         = p                                        [actor-pid]
+         <-- (pidOf (mk-actor p s mb))              [actor-pid]])
+  }
+
+  define P1-state := (forall a m . (stateOf (deliver a m)) = (stateOf a))
+  datatype-cases P1-state {
+    (a as (mk-actor p s mb)) =>
+      pick-any m:Message
+        (!chain
+          [(stateOf (deliver (mk-actor p s mb) m))
+         = (stateOf (mk-actor p s (enqueue m mb)))  [deliver-def]
+         = s                                         [actor-state]
+         <-- (stateOf (mk-actor p s mb))             [actor-state]])
+  }
+
+  # P2: deliver enqueues exactly one message at the end of the mailbox.
+  define P2 := (forall a m . (mboxOf (deliver a m)) = (enqueue m (mboxOf a)))
+  datatype-cases P2 {
+    (a as (mk-actor p s mb)) =>
+      pick-any m:Message
+        (!chain
+          [(mboxOf (deliver (mk-actor p s mb) m))
+         = (mboxOf (mk-actor p s (enqueue m mb)))   [deliver-def]
+         = (enqueue m mb)                            [actor-mbox]
+         <-- (enqueue m (mboxOf (mk-actor p s mb))) [actor-mbox]])
+  }
+
+  # Helper for P3 (we need to case on the mailbox since run has 2 axioms).
+  define run-pid-helper :=
+    (forall mb p s . (pidOf (run (mk-actor p s mb))) = p)
+  datatype-cases run-pid-helper {
+    empty-mb =>
+      pick-any p:Pid s:State
+        (!chain
+          [(pidOf (run (mk-actor p s empty-mb)))
+         = (pidOf (mk-actor p s empty-mb))      [run-empty]
+         = p                                      [actor-pid]])
+  | (mb as (cons-mb m rest)) =>
+      pick-any p:Pid s:State
+        (!chain
+          [(pidOf (run (mk-actor p s (cons-mb m rest))))
+         = (pidOf (mk-actor p (behavior s m) rest)) [run-cons]
+         = p                                          [actor-pid]])
+  }
+
+  # P3: run preserves the PID.
+  define P3 := (forall a . (pidOf (run a)) = (pidOf a))
+  datatype-cases P3 {
+    (a as (mk-actor p s mb)) =>
+      (!chain
+        [(pidOf (run (mk-actor p s mb)))
+       = p                                  [run-pid-helper]
+       <-- (pidOf (mk-actor p s mb))        [actor-pid]])
+  }
+
+  # P4: run consumes exactly one message; the new mailbox is the rest.
+  define P4 :=
+    (forall p s m rest . (mboxOf (run (mk-actor p s (cons-mb m rest)))) = rest)
+  conclude P4
+    pick-any p:Pid s:State m:Message rest:Mailbox
+      (!chain
+        [(mboxOf (run (mk-actor p s (cons-mb m rest))))
+       = (mboxOf (mk-actor p (behavior s m) rest))   [run-cons]
+       = rest                                         [actor-mbox]])
+
+  # P5: the new state is exactly (behavior s m).
+  define P5 :=
+    (forall p s m rest . (stateOf (run (mk-actor p s (cons-mb m rest)))) = (behavior s m))
+  conclude P5
+    pick-any p:Pid s:State m:Message rest:Mailbox
+      (!chain
+        [(stateOf (run (mk-actor p s (cons-mb m rest))))
+       = (stateOf (mk-actor p (behavior s m) rest))  [run-cons]
+       = (behavior s m)                               [actor-state]])
+
+  # P6: deliver never changes the state (follows from P1-state).
+  define P6 := (forall a m . (stateOf (deliver a m)) = (stateOf a))
+  conclude P6
+    (!claim P1-state)
+
+}
+
+open Actor

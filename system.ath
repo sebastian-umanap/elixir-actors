@@ -1,0 +1,108 @@
+# The actor system: an abstract map PID -> Actor with McCarthy's axioms.
+# send-to: deliver a message to actor p.
+# step:    let actor p process one message.
+# Proves S1..S6.
+
+load "actor.ath"
+
+domain System
+
+module System {
+
+  declare lookup : [System Pid] -> Actor
+  declare update : [System Pid Actor] -> System
+
+  define [sys sys1 sys2] := [?sys:System ?sys1:System ?sys2:System]
+  define [p q]           := [?p:Pid ?q:Pid]
+  define [a]             := [?a:Actor]
+  define [m]             := [?m:Message]
+
+  # McCarthy's axioms.
+  assert* mccarthy-same :=
+    ((lookup (update sys p a) p) = a)
+  assert* mccarthy-diff :=
+    ((~ (p = q)) ==> ((lookup (update sys p a) q) = (lookup sys q)))
+
+  declare send-to : [System Pid Message] -> System
+  declare step    : [System Pid] -> System
+
+  assert* send-to-def :=
+    ((send-to sys p m) = (update sys p (deliver (lookup sys p) m)))
+  assert* step-def :=
+    ((step sys p) = (update sys p (run (lookup sys p))))
+
+  # S1: if q != p, sending to p does not affect actor q.
+  define S1 :=
+    (forall sys p q m . (~ (p = q)) ==> ((lookup (send-to sys p m) q) = (lookup sys q)))
+  conclude S1
+    pick-any sys:System p:Pid q:Pid m:Message
+      assume case-neq := (~ (p = q))
+        (!chain
+          [(lookup (send-to sys p m) q)
+         = (lookup (update sys p (deliver (lookup sys p) m)) q)  [send-to-def]
+         = (lookup sys q)                                         [mccarthy-diff]])
+
+  # S2: if q != p, stepping p does not affect actor q.
+  define S2 :=
+    (forall sys p q . (~ (p = q)) ==> ((lookup (step sys p) q) = (lookup sys q)))
+  conclude S2
+    pick-any sys:System p:Pid q:Pid
+      assume case-neq := (~ (p = q))
+        (!chain
+          [(lookup (step sys p) q)
+         = (lookup (update sys p (run (lookup sys p))) q)         [step-def]
+         = (lookup sys q)                                          [mccarthy-diff]])
+
+  # S3: actor p after send-to is exactly deliver applied to the old actor.
+  define S3 :=
+    (forall sys p m . (lookup (send-to sys p m) p) = (deliver (lookup sys p) m))
+  conclude S3
+    pick-any sys:System p:Pid m:Message
+      (!chain
+        [(lookup (send-to sys p m) p)
+       = (lookup (update sys p (deliver (lookup sys p) m)) p)   [send-to-def]
+       = (deliver (lookup sys p) m)                              [mccarthy-same]])
+
+  # S4: actor p after step is exactly run of the old actor.
+  define S4 :=
+    (forall sys p . (lookup (step sys p) p) = (run (lookup sys p)))
+  conclude S4
+    pick-any sys:System p:Pid
+      (!chain
+        [(lookup (step sys p) p)
+       = (lookup (update sys p (run (lookup sys p))) p)         [step-def]
+       = (run (lookup sys p))                                    [mccarthy-same]])
+
+  # S5: no send-to ever changes any actor's state.
+  # Two cases on (p = q): uses S3+P1-state, and S1.
+  define S5 :=
+    (forall sys p q m . (stateOf (lookup (send-to sys p m) q)) = (stateOf (lookup sys q)))
+  conclude S5
+    pick-any sys:System p:Pid q:Pid m:Message
+      (!two-cases
+        assume case-eq := (p = q)
+          (!chain
+            [(stateOf (lookup (send-to sys p m) q))
+           = (stateOf (lookup (send-to sys q m) q))   [case-eq]
+           = (stateOf (deliver (lookup sys q) m))     [S3]
+           = (stateOf (lookup sys q))                 [P1-state]])
+        assume case-neq := (~ (p = q))
+          (!chain
+            [(stateOf (lookup (send-to sys p m) q))
+           = (stateOf (lookup sys q))                 [S1]]))
+
+  # S6: stepping a different PID never changes another actor's state.
+  # Together with P5 and P6, this means an actor's state can only change
+  # via step on its own PID.
+  define S6 :=
+    (forall sys p q . (~ (p = q)) ==> ((stateOf (lookup (step sys p) q)) = (stateOf (lookup sys q))))
+  conclude S6
+    pick-any sys:System p:Pid q:Pid
+      assume case-neq := (~ (p = q))
+        (!chain
+          [(stateOf (lookup (step sys p) q))
+         = (stateOf (lookup sys q))                  [S2]])
+
+}
+
+open System

@@ -1,0 +1,10 @@
+# Messages are kept abstract. We don't need to look inside a message
+# to prove the actor properties.
+
+domain Message
+
+module Message {
+  define [m m1 m2 m3] := [?m:Message ?m1:Message ?m2:Message ?m3:Message]
+}
+
+open Message

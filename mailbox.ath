@@ -1,0 +1,53 @@
+# FIFO mailbox.
+# Head of (cons-mb m mb) is the oldest message (next to process).
+# enqueue puts the new message at the end.
+
+load "message.ath"
+
+datatype Mailbox := empty-mb | (cons-mb Message Mailbox)
+
+module Mailbox {
+
+  define [m m1 m2] := [?m:Message ?m1:Message ?m2:Message]
+  define [mb mb1 mb2] := [?mb:Mailbox ?mb1:Mailbox ?mb2:Mailbox]
+
+  declare head-mb   : [Mailbox] -> Message
+  declare tail-mb   : [Mailbox] -> Mailbox
+  declare enqueue   : [Message Mailbox] -> Mailbox
+  declare is-empty? : [Mailbox] -> Boolean
+
+  assert* head-mb-def := ((head-mb (cons-mb m mb)) = m)
+  assert* tail-mb-def := ((tail-mb (cons-mb m mb)) = mb)
+
+  assert* enqueue-empty := ((enqueue m empty-mb) = (cons-mb m empty-mb))
+  assert* enqueue-cons  := ((enqueue m (cons-mb m1 mb)) = (cons-mb m1 (enqueue m mb)))
+
+  assert  is-empty-empty := (is-empty? empty-mb)
+  assert* is-empty-cons  := (~ (is-empty? (cons-mb m mb)))
+
+  # F1: enqueue m1 then m2 on empty -> head is m1.
+  define fifo-two :=
+    (forall m1 m2 . (head-mb (enqueue m2 (enqueue m1 empty-mb))) = m1)
+
+  conclude fifo-two
+    pick-any m1:Message m2:Message
+      (!chain
+        [(head-mb (enqueue m2 (enqueue m1 empty-mb)))
+       = (head-mb (enqueue m2 (cons-mb m1 empty-mb)))   [enqueue-empty]
+       = (head-mb (cons-mb m1 (enqueue m2 empty-mb)))   [enqueue-cons]
+       = m1                                              [head-mb-def] ])
+
+  # Lemma: enqueueing onto a non-empty mailbox does not change the head.
+  define enqueue-preserves-head :=
+    (forall mb m1 m . (head-mb (enqueue m (cons-mb m1 mb))) = m1)
+
+  conclude enqueue-preserves-head
+    pick-any mb:Mailbox m1:Message m:Message
+      (!chain
+        [(head-mb (enqueue m (cons-mb m1 mb)))
+       = (head-mb (cons-mb m1 (enqueue m mb)))          [enqueue-cons]
+       = m1                                              [head-mb-def] ])
+
+}
+
+open Mailbox

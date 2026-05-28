@@ -1,3 +1,5 @@
+# Sebastian Umaña - 202013778
+#
 # An actor has a PID, a private state and a FIFO mailbox.
 # deliver: puts a message in the mailbox (does not touch the state).
 # run: processes the oldest message using the behavior function.

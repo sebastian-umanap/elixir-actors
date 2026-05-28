@@ -1,5 +1,8 @@
 # Elixir actor model in Athena
 
+**Author:** Sebastian Alberto Umaña Peinado — `s.umanap` — 202013778
+**Course:** ISIS-4220 Software Verification
+
 Specification and verification of the Elixir actor model. Built in layers; each file loads the previous one.
 
 ## How to run
